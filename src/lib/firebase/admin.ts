@@ -7,6 +7,38 @@ if (typeof window !== "undefined") {
 }
 
 function getServiceAccountCredential() {
+  // 1. Individual server-side environment variables (Standard Vercel configuration)
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const projectId =
+    process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+  if (clientEmail && privateKey) {
+    return {
+      projectId,
+      clientEmail,
+      privateKey: privateKey.replace(/\\n/g, "\n"),
+    };
+  }
+
+  // 2. Service account JSON string environment variable (raw JSON or base64)
+  const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (rawJson) {
+    try {
+      const jsonString = rawJson.trim().startsWith("{")
+        ? rawJson
+        : Buffer.from(rawJson, "base64").toString("utf8");
+      const parsed = JSON.parse(jsonString);
+      if (parsed.private_key) {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+      }
+      return parsed;
+    } catch {
+      // Ignore JSON parse errors, proceed to filesystem fallback
+    }
+  }
+
+  // 3. Filesystem path (Local development fallback)
   const keyPath =
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH ||
     "./src/lib/firebase/credentials/service-account.json";
@@ -20,11 +52,6 @@ function getServiceAccountCredential() {
       const fileContent = fs.readFileSync(resolvedPath, "utf8");
       return JSON.parse(fileContent);
     }
-  }
-
-  const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (rawJson) {
-    return JSON.parse(rawJson);
   }
 
   return null;
